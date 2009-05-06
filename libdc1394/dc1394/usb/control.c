@@ -176,8 +176,10 @@ do_read (libusb_device_handle * handle, uint64_t address, uint32_t * quads,
     int ret = libusb_control_transfer (handle, 0xc0, request,
             address & 0xffff, (address >> 16) & 0xffff,
             buf, num_quads * 4, REQUEST_TIMEOUT_MS);
-    if (ret < 0)
+    if (ret < 0) {
+        dc1394_log_error("usb: control transfer failed");
         return -1;
+    }
     int i;
     int ret_quads = (ret + 3) / 4;
     /* Convert from little-endian to host-endian */
@@ -307,9 +309,12 @@ static dc1394error_t
 dc1394_usb_camera_read (platform_camera_t * cam, uint64_t offset,
         uint32_t * quads, int num_quads)
 {
-    if (do_read (cam->handle, CONFIG_ROM_BASE + offset, quads,
-                num_quads) != num_quads)
-        return DC1394_FAILURE;
+    int actual_num_quads;
+    actual_num_quads = do_read (cam->handle, CONFIG_ROM_BASE + offset, quads,
+                                num_quads);
+    if (actual_num_quads != num_quads) {
+        return DC1394_USB_READ_ERROR;
+    }
 
     return DC1394_SUCCESS;
 }
