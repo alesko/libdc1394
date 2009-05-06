@@ -88,7 +88,8 @@ const char *dc1394_error_strings[DC1394_ERROR_NUM] = {
     "Basler error: no more SFF chunks",
     "Basler error: corrupted SFF chunk",
     "Basler error: unknown SFF chunk",
-    "USB error: read failed"
+    "USB error: read failed",
+    "Interrupted system call"
 };
 
 dc1394error_t

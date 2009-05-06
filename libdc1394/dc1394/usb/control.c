@@ -176,8 +176,11 @@ do_read (libusb_device_handle * handle, uint64_t address, uint32_t * quads,
     int ret = libusb_control_transfer (handle, 0xc0, request,
             address & 0xffff, (address >> 16) & 0xffff,
             buf, num_quads * 4, REQUEST_TIMEOUT_MS);
-    if (ret < 0) {
-        dc1394_log_error("usb: control transfer failed");
+    if (ret == LIBUSB_ERROR_INTERRUPTED) {
+        dc1394_log_debug("usb: control transfer interrupted. libusb error %d",ret);
+        return -2;
+    } else if (ret < 0) {
+        dc1394_log_error("usb: control transfer failed. libusb error %d",ret);
         return -1;
     }
     int i;
@@ -233,8 +236,9 @@ dc1394_usb_device_get_config_rom (platform_device_t * device,
     /* Read the config ROM one quad at a time because a read longer than
      * the length of the ROM will fail. */
     int i;
+    int ret=0;
     for (i = 0; i < *num_quads; i++) {
-        int ret = do_read (handle, CONFIG_ROM_BASE + 0x400 + 4*i,
+        ret = do_read (handle, CONFIG_ROM_BASE + 0x400 + 4*i,
                 quads + i, 1);
         if (ret < 1)
             break;
@@ -243,11 +247,17 @@ dc1394_usb_device_get_config_rom (platform_device_t * device,
     if (i == 0) {
         dc1394_log_error ("usb: Failed to read config ROM");
         libusb_close (handle);
+        if (ret==-2) {
+            return DC1394_INTERRUPTED_SYSCALL;
+        }
         return -1;
     }
 
     *num_quads = i;
     libusb_close (handle);
+    if (ret==-2) {
+        return DC1394_INTERRUPTED_SYSCALL;
+    }
     return 0;
 }
 
@@ -313,6 +323,9 @@ dc1394_usb_camera_read (platform_camera_t * cam, uint64_t offset,
     actual_num_quads = do_read (cam->handle, CONFIG_ROM_BASE + offset, quads,
                                 num_quads);
     if (actual_num_quads != num_quads) {
+        if (actual_num_quads == -2) {
+            return DC1394_INTERRUPTED_SYSCALL;
+        }
         return DC1394_USB_READ_ERROR;
     }
 
